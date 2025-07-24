@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image and Text Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #0099FF;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        main {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #image-gallery {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: scroll;
+            height: 60vh;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        .image-container img {
+    width: 100%;
+    height: auto; /* Maintain aspect ratio */
+    object-fit: scale-down; /* Scale image to fit without cropping */
+}
+        .image-container.highlight {
+            border: 3px solid red; /* Red border for new images */
+        }
+        .image-header {
+            background-color: #f9f9f9;
+            padding: 5px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid #ddd;
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+            object-fit: scale-down;
+        }
+        #text-list {
+            overflow-y: scroll;
+            height: 30vh;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        #text-list p {
+            background: #f9f9f9;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        #text-form {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #0099FF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #007ACC;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Image and Text Manager</h1>
+    </header>
+    <main>
+        <section>
+            <h2>Image Gallery</h2>
+            <div id="image-gallery"></div>
+        </section>
+        <section>
+            <h2>Submitted Texts</h2>
+            <div id="text-list"></div>
+        </section>
+        <section>
+            <h2>Submit Text</h2>
+            <form id="text-form">
+                <textarea id="text-input" placeholder="Enter text here..."></textarea>
+                <button type="submit">Submit Text</button>
+            </form>
+        </section>
+    </main>
+    <script>
+        const API_URL = `${window.location.origin}`;
+        let username = "";
+        let password = "";
+        let lastLoadedImageId = 0;
+
+        // Prompt for username and password
+        async function promptForLogin() {
+            username = prompt("Enter your username:");
+            password = prompt("Enter your password:");
+
+            if (!username || !password) {
+                alert("Username and password are required.");
+                await promptForLogin();
+                return;
+            }
+
+            const loginSuccess = await checkLogin();
+            if (!loginSuccess) {
+                alert("Invalid credentials. Please try again.");
+                await promptForLogin();
+            }
+        }
+
+        // Check if login is valid
+        async function checkLogin() {
+            try {
+                const response = await fetch(`${API_URL}/check-login`, {
+                    headers: {
+                        "Authorization": `Basic ${btoa(`${username}:${password}`)}`
+                    }
+                });
+
+                return response.ok;
+            } catch (error) {
+                console.error("Error checking login:", error);
+                return false;
+            }
+        }
+
+        // Load images into the gallery
+        async function loadImages() {
+            const gallery = document.getElementById("image-gallery");
+
+            try {
+                const response = await fetch(`${API_URL}/get-all-images`, {
+                    headers: {
+                        "Authorization": `Basic ${btoa(`${username}:${password}`)}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to load images");
+                    return;
+                }
+
+                const images = await response.json();
+                const newImages = images.filter(image => image.id > lastLoadedImageId);
+
+                newImages.forEach(image => {
+                    const container = document.createElement("div");
+                    container.classList.add("image-container", "highlight"); // Add red border initially
+
+                    const header = document.createElement("div");
+                    header.classList.add("image-header");
+                    header.textContent = `Uploaded on: ${new Date(image.created_at).toLocaleString()}`;
+
+                    const img = document.createElement("img");
+                    img.src = `data:image/png;base64,${image.image_base64}`;
+                    img.alt = `Image ${image.id}`;
+
+                    container.appendChild(header);
+                    container.appendChild(img);
+                    gallery.appendChild(container);
+
+                    // Remove red border after 5 seconds
+                    setTimeout(() => {
+                        container.classList.remove("highlight");
+                    }, 5000);
+                });
+
+                if (newImages.length > 0) {
+                    lastLoadedImageId = images[images.length - 1].id;
+                    gallery.scrollTop = gallery.scrollHeight; // Scroll to the latest image
+                }
+            } catch (error) {
+                console.error("Error loading images:", error);
+            }
+        }
+
+        // Load texts into the text list
+        async function loadTexts() {
+            const textList = document.getElementById("text-list");
+
+            try {
+                const response = await fetch(`${API_URL}/get-all-texts`, {
+                    headers: {
+                        "Authorization": `Basic ${btoa(`${username}:${password}`)}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to load texts");
+                    return;
+                }
+
+                const texts = await response.json();
+                textList.innerHTML = ""; // Clear previous content
+
+                texts.forEach(text => {
+                    const p = document.createElement("p");
+                    p.textContent = `${text.text_data} (Submitted on ${new Date(text.created_at).toLocaleString()})`;
+                    textList.appendChild(p);
+                });
+            } catch (error) {
+                console.error("Error loading texts:", error);
+            }
+        }
+
+        // Submit text to the backend
+        document.getElementById("text-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const textInput = document.getElementById("text-input");
+            const text = textInput.value;
+
+            if (!text) {
+                alert("Please enter some text.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/store-text`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Basic ${btoa(`${username}:${password}`)}`
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                if (response.ok) {
+                    textInput.value = ""; // Clear input field
+                    loadTexts(); // Reload the text list
+                } else {
+                    console.error("Failed to submit text.");
+                }
+            } catch (error) {
+                console.error("Error submitting text:", error);
+            }
+        });
+
+        // Periodically reload images to fetch the latest ones
+        function startImageUpdates() {
+            setInterval(loadImages, 5000); // Refresh every 5 seconds
+        }
+
+        // Load images and texts on page load
+        window.onload = async () => {
+            await promptForLogin();
+            loadImages();
+            loadTexts();
+            startImageUpdates();
+        };
+    </script>
+</body>
+</html>
